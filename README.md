@@ -74,5 +74,6 @@ Consumed: temp=31 vib=20
 ```
 
 ## Build Commands 
-west build -b nucleo_f401re -p always .
-west flash
+- west build -b nucleo_f401re -p always .
+- west flash
+  
