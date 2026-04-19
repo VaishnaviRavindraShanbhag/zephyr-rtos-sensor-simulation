@@ -43,3 +43,38 @@ The goal of the project is to showcase core RTOS concepts commonly used in embed
 ├── prj.conf
 ├── CMakeLists.txt
 └── README.md
+
+## Technologies
+- Zephyr RTOS
+- Embedded C
+- Multithreading
+- FIFO / Message Queues
+- Real-Time Scheduling
+- Native Simulation
+- CMake / West
+
+## System Architecture
+
+Producer Thread:
+- Periodically generates simulated sensor data
+
+Queue:
+- Transfers data safely between threads
+
+Consumer Thread:
+- Reads incoming data and logs/handles it
+
+## Example Output
+
+Produced: temp=30 vib=18
+Consumed: temp=30 vib=18
+Produced: temp=31 vib=20
+Consumed: temp=31 vib=20
+
+## Future Improvements
+
+- Port to STM32 Nucleo board
+- Add CAN communication
+- Integrate MPU6050 sensor
+- Add priority scheduling
+- Add watchdog/error handling
