@@ -75,6 +75,7 @@ The producer thread runs periodically every 1 second. It reads live sensor data 
 The consumer thread waits on the message queue, receives sensor packets, logs the readings, and classifies the system state based on temperature and vibration thresholds.
 
 ## Sensor Data Structure
+```c
 struct sensor_data {
     int temperature_c;
     int accel_x_milli;
@@ -82,11 +83,18 @@ struct sensor_data {
     int accel_z_milli;
     int vibration_milli;
 };
+```
 
 ## Example output 
 
+```text
+[00:00:02.021,000] <inf> app: Consumer: temp=23 C vib=14965 accel=(1762,6153,-7050)
+[00:00:03.024,000] <inf> app: Consumer: temp=23 C vib=14875 accel=(1649,6200,-7026)
+[00:00:41.191,000] <wrn> app: State changed: WARNING
+[00:00:43.197,000] <err> app: State changed: FAULT
+[00:00:44.201,000] <inf> app: State changed: NORMAL
+```
 
-<img width="1147" height="286" alt="image" src="https://github.com/user-attachments/assets/0c0239a2-2b35-473e-846c-5153d029b472" />
 
 ## Current Status
 Implemented and tested:
