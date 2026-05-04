@@ -1,93 +1,136 @@
 #include <zephyr/kernel.h>
+#include <zephyr/device.h>
+#include <zephyr/drivers/sensor.h>
 #include <zephyr/logging/log.h>
-#include "sensor_sim.h"
-
+#include "sensor_data.h"
+#include <stdlib.h>
 LOG_MODULE_REGISTER(app, LOG_LEVEL_INF);
-
 K_MSGQ_DEFINE(sensor_msgq, sizeof(struct sensor_data), 10, 4);
-
+#define PRODUCER_STACK_SIZE 1024
+#define THREAD_PRIORITY 5
 enum system_state {
     NORMAL,
     WARNING,
     FAULT
 };
+static int sensor_value_to_milli_int(struct sensor_value *val)
+{
+    return (val->val1 * 1000) + (val->val2 / 1000);
+}
+void producer_thread(void)
+{
+    k_sleep(K_SECONDS(1));
 
-#define PRODUCER_STACK_SIZE 1024
-#define CONSUMER_STACK_SIZE 1024
-#define THREAD_PRIORITY 5
+    const struct device *bme = DEVICE_DT_GET(DT_NODELABEL(bme280));
+    const struct device *mpu = DEVICE_DT_GET(DT_NODELABEL(mpu6050));
 
+    if (!device_is_ready(bme)) {
+        LOG_ERR("BME280 device not ready");
+        return;
+    }
+
+    if (!device_is_ready(mpu)) {
+        LOG_ERR("MPU6050 device not ready");
+        return;
+    }
+
+    LOG_INF("Producer: sensors ready");
+
+    while (1) {
+        struct sensor_value temp;
+        struct sensor_value accel[3];
+        struct sensor_data data;
+
+        int ret = sensor_sample_fetch(bme);
+        if (ret < 0) {
+            LOG_ERR("Producer: failed to fetch BME280, ret=%d", ret);
+            k_sleep(K_SECONDS(1));
+            continue;
+        }
+
+        ret = sensor_channel_get(bme, SENSOR_CHAN_AMBIENT_TEMP, &temp);
+        if (ret < 0) {
+            LOG_ERR("Producer: failed to read temperature, ret=%d", ret);
+            k_sleep(K_SECONDS(1));
+            continue;
+        }
+
+        ret = sensor_sample_fetch(mpu);
+        if (ret < 0) {
+            LOG_ERR("Producer: failed to fetch MPU6050, ret=%d", ret);
+            k_sleep(K_SECONDS(1));
+            continue;
+        }
+
+        ret = sensor_channel_get(mpu, SENSOR_CHAN_ACCEL_XYZ, accel);
+        if (ret < 0) {
+            LOG_ERR("Producer: failed to read accel, ret=%d", ret);
+            k_sleep(K_SECONDS(1));
+            continue;
+        }
+
+        data.temperature_c = temp.val1;
+        data.accel_x_milli = sensor_value_to_milli_int(&accel[0]);
+        data.accel_y_milli = sensor_value_to_milli_int(&accel[1]);
+        data.accel_z_milli = sensor_value_to_milli_int(&accel[2]);
+
+        data.vibration_milli =
+    abs(data.accel_x_milli) +
+    abs(data.accel_y_milli) +
+    abs(data.accel_z_milli);
+        if (k_msgq_put(&sensor_msgq, &data, K_NO_WAIT) != 0) {
+    LOG_WRN("Producer: queue full, data dropped");
+}
+        k_sleep(K_SECONDS(1));
+    }
+}
 enum system_state check_system_state(struct sensor_data data)
 {
-    if (data.temperature > 38 || data.vibration > 28) {
+    if (data.temperature_c > 35 || data.vibration_milli > 22000) {
         return FAULT;
     }
 
-    if (data.temperature > 35 || data.vibration > 25) {
+    if (data.temperature_c > 30 || data.vibration_milli > 18000) {
         return WARNING;
     }
 
     return NORMAL;
 }
-
-void producer_thread(void)
-{
-    struct sensor_data data;
-
-    while (1) {
-        generate_sensor_data(&data);
-
-        if (k_msgq_put(&sensor_msgq, &data, K_NO_WAIT) == 0) {
-            LOG_INF("Produced: temp=%d vib=%d", data.temperature, data.vibration);
-        } else {
-            LOG_WRN("Queue full, data dropped");
-        }
-
-        k_sleep(K_SECONDS(1));
-    }
-}
-
 void consumer_thread(void)
 {
     struct sensor_data data;
-	static enum system_state previous_state = NORMAL;
+static enum system_state previous_state = NORMAL;
+
     while (1) {
         if (k_msgq_get(&sensor_msgq, &data, K_FOREVER) == 0) {
-            LOG_INF("Consumed: temp=%d vib=%d", data.temperature, data.vibration);
-		enum system_state state = check_system_state(data);
-if (data.temperature > 38) {
-    LOG_ERR("Temperature fault: %d", data.temperature);
-}
-else if (data.temperature > 35) {
-    LOG_WRN("Temperature warning: %d", data.temperature);
-}
+            enum system_state state = check_system_state(data);
 
-if (data.vibration > 28) {
-    LOG_ERR("Vibration fault: %d", data.vibration);
-}
-else if (data.vibration > 25) {
-    LOG_WRN("Vibration warning: %d", data.vibration);
-}
+LOG_INF("Consumer: temp=%d C vib=%d accel=(%d,%d,%d)",
+        data.temperature_c,
+        data.vibration_milli,
+        data.accel_x_milli,
+        data.accel_y_milli,
+        data.accel_z_milli);
 
-		if (state != previous_state) {
-
-    if (state == WARNING) {
-        LOG_WRN("State changed: WARNING");
-    }
-    else if (state == FAULT) {
+if (state != previous_state) {
+    if (state == FAULT) {
         LOG_ERR("State changed: FAULT");
-    }
-    else {
+    } else if (state == WARNING) {
+        LOG_WRN("State changed: WARNING");
+    } else {
         LOG_INF("State changed: NORMAL");
     }
 
     previous_state = state;
-}		
-        }
+}        }
     }
 }
-
+int main(void)
+{
+    LOG_INF("Sensor monitoring application started");
+    return 0;
+}
 K_THREAD_DEFINE(producer_tid, PRODUCER_STACK_SIZE, producer_thread,
                 NULL, NULL, NULL, THREAD_PRIORITY, 0, 0);
-
-K_THREAD_DEFINE(consumer_tid, CONSUMER_STACK_SIZE, consumer_thread,
+K_THREAD_DEFINE(consumer_tid, PRODUCER_STACK_SIZE, consumer_thread,
                 NULL, NULL, NULL, THREAD_PRIORITY, 0, 0);
