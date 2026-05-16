@@ -134,3 +134,9 @@ K_THREAD_DEFINE(producer_tid, PRODUCER_STACK_SIZE, producer_thread,
                 NULL, NULL, NULL, THREAD_PRIORITY, 0, 0);
 K_THREAD_DEFINE(consumer_tid, PRODUCER_STACK_SIZE, consumer_thread,
                 NULL, NULL, NULL, THREAD_PRIORITY, 0, 0);
+/*
+K_THREAD_DEFINE(name, stack_size, entry,
+                p1, p2, p3, priority, options, delay);
+pi, p2, p3 -> argument passed into the thread
+options -> sometimes options can be used to select things like user mode
+*/
