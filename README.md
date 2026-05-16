@@ -133,9 +133,9 @@ Implemented and tested:
 python -m west build -b nucleo_f401re -s . -p always
 python -m west flash
 ```
-west is Zephyr's mail command libe tool
--s . ->> menats you are running the command directly from the application file's source directory. 
--p always --> builds a pristine build everytime and discards the previous build. 
+- west is Zephyr's mail command line tool
+- -s . ->> menats you are running the command directly from the application file's source directory. 
+- -p always --> builds a pristine build everytime and discards the previous build. 
 
 ## Serial Monitor
 
